@@ -42,6 +42,10 @@
 #include <sys/param.h>
 #include <sys/ioctl.h>
 
+#if 1 //def HW_TENDERLOIN
+#include <linux/hsuart.h>
+#endif
+
 #include "lib/bluetooth.h"
 #include "lib/hci.h"
 #include "lib/hci_lib.h"
@@ -404,6 +408,7 @@ static int bcsp(int fd, struct uart_t *u, struct termios *ti)
 	struct sigaction sa;
 	int len;
 
+#if 0
 	if (set_speed(fd, ti, u->speed) < 0) {
 		perror("Can't set default baud rate");
 		return -1;
@@ -416,7 +421,7 @@ static int bcsp(int fd, struct uart_t *u, struct termios *ti)
 		perror("Can't set port settings");
 		return -1;
 	}
-
+#endif
 	alarm(0);
 
 	serial_fd = fd;
@@ -1191,13 +1196,16 @@ static int init_uart(char *dev, struct uart_t *u, int send_break, int raw)
 {
 	struct termios ti;
 	int fd, i;
+#if 1
+	struct hsuart_mode uart_mode;
+#endif
 	unsigned long flags = 0;
 
 	if (raw)
 		flags |= 1 << HCI_UART_RAW_DEVICE;
 
-	if (u->flags & AMP_DEV)
-		flags |= 1 << HCI_UART_CREATE_AMP;
+//	if (u->flags & AMP_DEV)
+//		flags |= 1 << HCI_UART_CREATE_AMP;
 
 	fd = open(dev, O_RDWR | O_NOCTTY);
 	if (fd < 0) {
@@ -1214,6 +1222,7 @@ static int init_uart(char *dev, struct uart_t *u, int send_break, int raw)
 
 	cfmakeraw(&ti);
 
+#if 0
 	ti.c_cflag |= CLOCAL;
 	if (u->flags & FLOW_CTL)
 		ti.c_cflag |= CRTSCTS;
@@ -1230,18 +1239,27 @@ static int init_uart(char *dev, struct uart_t *u, int send_break, int raw)
 		perror("Can't set initial baud rate");
 		goto fail;
 	}
+#else
+	//Setup the port for ne fast speed
+	ioctl(fd,HSUART_IOCTL_CLEAR_FIFO,0xF);
+	ioctl(fd,HSUART_IOCTL_GET_UARTMODE,&uart_mode);
+	uart_mode.speed = 0x384000; //115200
+	uart_mode.flags = 0x9;
+	ioctl(fd, HSUART_IOCTL_SET_UARTMODE,&uart_mode);
+	ioctl(fd,HSUART_IOCTL_SET_RXLAT,0x80);
+#endif
 
 	tcflush(fd, TCIOFLUSH);
 
-	if (send_break) {
-		tcsendbreak(fd, 0);
-		usleep(500000);
-	}
+//	if (send_break) {
+//		tcsendbreak(fd, 0);
+//		usleep(500000);
+//	}
 
 	if (u->init && u->init(fd, u, &ti) < 0)
 		goto fail;
 
-	tcflush(fd, TCIOFLUSH);
+//	tcflush(fd, TCIOFLUSH);
 
 	/* Set actual baudrate */
 	if (set_speed(fd, &ti, u->speed) < 0) {

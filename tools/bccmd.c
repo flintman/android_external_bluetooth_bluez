@@ -1018,6 +1018,9 @@ static int cmd_psload(int transport, int argc, char *argv[])
 	if (reset)
 		transport_write(transport, CSR_VARID_WARM_RESET, NULL, 0);
 
+	/* Give time to reboot ... */
+		usleep(500000);
+
 	return 0;
 }
 

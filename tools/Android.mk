@@ -18,7 +18,6 @@ BLUEZ_COMMON_CFLAGS += -Wno-pointer-arith -Wno-missing-field-initializers
 
 # @ daniel, extra tools for CSR
 ifeq ($(BOARD_HAVE_BLUETOOTH_CSR),true)
-
 #
 # bccmd
 #
@@ -36,7 +35,7 @@ LOCAL_SRC_FILES:= \
 	bluez/tools/csr_usb.c \
 	bluez/tools/ubcsp.c
 
-LOCAL_CFLAGS := $(BLUEZ_COMMON_CFLAGS)
+LOCAL_CFLAGS += $(BLUEZ_COMMON_CFLAGS)
 
 LOCAL_C_INCLUDES:=\
 	$(LOCAL_PATH)/bluez \
@@ -44,6 +43,14 @@ LOCAL_C_INCLUDES:=\
 	$(LOCAL_PATH)/bluez/tools \
 	$(LOCAL_PATH)/bluez/src \
 	$(LOCAL_PATH)/bluez/src/shared \
+
+ifeq ($(TARGET_BOOTLOADER_BOARD_NAME), tenderloin)
+	kernel_includes += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+	LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+	LOCAL_C_INCLUDES += $(kernel_includes)
+
+	LOCAL_CFLAGS := -DHW_TENDERLOIN
+endif
 
 LOCAL_MODULE:=bccmd
 

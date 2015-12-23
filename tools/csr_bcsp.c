@@ -33,6 +33,10 @@
 #include <stdint.h>
 #include <termios.h>
 
+#ifdef HW_TENDERLOIN
+#include <linux/hsuart.h>
+#endif
+
 #include "csr.h"
 #include "ubcsp.h"
 
@@ -50,18 +54,27 @@ int csr_open_bcsp(char *device, speed_t bcsp_rate)
 {
 	struct termios ti;
 	uint8_t delay, activity = 0x00;
+#ifdef HW_TENDERLOIN
+	struct hsuart_mode uart_mode;
+#endif
 	int timeout = 0;
 
 	if (!device)
 		device = "/dev/ttyS0";
 
+	fprintf(stderr, "device %s\n", device);
+#ifdef HW_TENDERLOIN
+	fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
+#else
 	fd = open(device, O_RDWR | O_NOCTTY);
+#endif
 	if (fd < 0) {
 		fprintf(stderr, "Can't open serial port: %s (%d)\n",
 						strerror(errno), errno);
 		return -1;
 	}
 
+#ifndef HW_TENDERLOIN
 	tcflush(fd, TCIOFLUSH);
 
 	if (tcgetattr(fd, &ti) < 0) {
@@ -101,7 +114,26 @@ int csr_open_bcsp(char *device, speed_t bcsp_rate)
 		close(fd);
 		return -1;
 	}
+#else
+	// HW_TENDERLOIN
+	fprintf(stderr, "rate %d\n", bcsp_rate);
+	if (bcsp_rate == 38400) {
+		uart_mode.speed = 0x384000;
+	} else {
+		uart_mode.speed = 0x1C200;
+	}
 
+	uart_mode.flags = 0x9;
+
+	if (ioctl(fd, HSUART_IOCTL_SET_UARTMODE, &uart_mode) < 0) {
+		fprintf(stderr, "Failed HSUART_IOCTL_SET_UARTMODE: %s (%d)",
+                 strerror(errno), errno);
+		close(fd);
+		fd = -1;
+		return -1;
+	}
+	usleep(100);
+#endif
 	memset(&send_packet, 0, sizeof(send_packet));
 	memset(&receive_packet, 0, sizeof(receive_packet));
 
@@ -137,7 +169,11 @@ int csr_open_bcsp(char *device, speed_t bcsp_rate)
 void put_uart(uint8_t ch)
 {
 	if (write(fd, &ch, 1) < 0)
-		fprintf(stderr, "UART write error\n");
+#ifdef HW_TENDERLOIN
+		usleep(1000);
+#else
+	fprintf(stderr, "UART write error\n");
+#endif
 }
 
 uint8_t get_uart(uint8_t *ch)
